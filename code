@@ -1,0 +1,258 @@
+#include <stdio.h>
+#define ZONES 5
+#define DAYS 7
+
+void inputData(float temp[ZONES][DAYS], float humidity[ZONES][DAYS],
+               int aqi[ZONES][DAYS]);
+void displayData(float temp[ZONES][DAYS], float humidity[ZONES][DAYS],
+                 int aqi[ZONES][DAYS]);
+void calculateAverages(float temp[ZONES][DAYS], float humidity[ZONES][DAYS],
+                       int aqi[ZONES][DAYS], float avgTemp[ZONES],
+                       float avgHumidity[ZONES], float avgAQI[ZONES]);
+void detectRiskZones(float temp[ZONES][DAYS], float humidity[ZONES][DAYS],
+                     int aqi[ZONES][DAYS], int riskDays[ZONES]);
+void computeGreenIndex(float avgTemp[ZONES], float avgHumidity[ZONES],
+                       float avgAQI[ZONES], float greenIndex[ZONES]);
+void displayRanking(float greenIndex[ZONES]);
+void displayRecommendations(float avgTemp[ZONES], float avgHumidity[ZONES],
+                            float avgAQI[ZONES], int riskDays[ZONES]);
+void printZoneName(int zone);               /* helper */
+float absDiff(float value, float target);
+
+int main() {
+    float temp[ZONES][DAYS], humidity[ZONES][DAYS];
+    int aqi[ZONES][DAYS];
+    float avgTemp[ZONES], avgHumidity[ZONES], avgAQI[ZONES], greenIndex[ZONES];
+    int riskDays[ZONES];
+    int choice, z, dataReady = 0;
+
+    do {
+        printf("===== ECOGUARD MENU =====\n");
+        printf("1 Input / Update Data  2 Display Data\n");
+        printf("3 Zone-wise Averages   4 Detect Risk Days\n");
+        printf("5 Green Index and Ranking\n");
+        printf("6 Recommendations      7 Exit\n");
+        printf("Enter your choice: ");
+        scanf("%d", &choice);
+
+        if (choice == 1) {
+            inputData(temp, humidity, aqi);
+            dataReady = 1;
+        } else if (choice >= 2 && choice <= 6 && dataReady == 0) {
+            printf("No data yet! Please choose option 1 first.\n");
+        } else if (choice == 2) {
+            displayData(temp, humidity, aqi);
+        } else if (choice == 3) {
+            calculateAverages(temp, humidity, aqi, avgTemp, avgHumidity, avgAQI);
+            printf("\nSeven-day averages:\n");
+            for (z = 0; z < ZONES; z++) {
+                printf("Zone %d: Temp %.2f  Hum %.2f  AQI %.2f\n",
+                       z + 1, avgTemp[z], avgHumidity[z], avgAQI[z]);
+            }
+        } else if (choice == 4) {
+            detectRiskZones(temp, humidity, aqi, riskDays);
+        } else if (choice == 5) {
+            calculateAverages(temp, humidity, aqi, avgTemp, avgHumidity, avgAQI);
+            computeGreenIndex(avgTemp, avgHumidity, avgAQI, greenIndex);
+            displayRanking(greenIndex);
+        } else if (choice == 6) {
+            calculateAverages(temp, humidity, aqi, avgTemp, avgHumidity, avgAQI);
+            detectRiskZones(temp, humidity, aqi, riskDays);
+            displayRecommendations(avgTemp, avgHumidity, avgAQI, riskDays);
+        } else if (choice == 7) {
+            printf("Thank you for using ECOGUARD. Goodbye!\n");
+        } else {
+            printf("Invalid choice! Please enter 1 to 7.\n");
+        }
+    } while (choice != 7);
+
+    return 0;
+}
+
+/* reads and validates every reading */
+void inputData(float temp[ZONES][DAYS], float humidity[ZONES][DAYS],
+               int aqi[ZONES][DAYS]) {
+    int z, d;
+    printf("Note: sample data is SIMULATED, not real readings.\n");
+    for (z = 0; z < ZONES; z++) {
+        printf("Zone %d temperature (10-50): ", z + 1);
+        for (d = 0; d < DAYS; d++) {
+            scanf("%f", &temp[z][d]);
+            while (temp[z][d] < 10 || temp[z][d] > 50) {
+                printf("Invalid temperature! Re-enter (10-50): ");
+                scanf("%f", &temp[z][d]);
+            }
+        }
+        printf("Zone %d humidity (0-100): ", z + 1);
+        for (d = 0; d < DAYS; d++) {
+            scanf("%f", &humidity[z][d]);
+            while (humidity[z][d] < 0 || humidity[z][d] > 100) {
+                printf("Invalid humidity! Re-enter (0-100): ");
+                scanf("%f", &humidity[z][d]);
+            }
+        }
+        printf("Zone %d AQI (0-500): ", z + 1);
+        for (d = 0; d < DAYS; d++) {
+            scanf("%d", &aqi[z][d]);
+            while (aqi[z][d] < 0 || aqi[z][d] > 500) {
+                printf("Invalid AQI! Re-enter (0-500): ");
+                scanf("%d", &aqi[z][d]);
+            }
+        }
+    }
+}
+
+/* shows the three matrices as tables */
+void displayData(float temp[ZONES][DAYS], float humidity[ZONES][DAYS],
+                 int aqi[ZONES][DAYS]) {
+    int z, d;
+    printf("\nTemperature (C)\nZone    D1    D2    D3    D4    D5    D6    D7\n");
+    for (z = 0; z < ZONES; z++) {
+        printf("%4d", z + 1);
+        for (d = 0; d < DAYS; d++) printf("%6.1f", temp[z][d]);
+        printf("\n");
+    }
+    printf("\nHumidity (%%)\nZone    D1    D2    D3    D4    D5    D6    D7\n");
+    for (z = 0; z < ZONES; z++) {
+        printf("%4d", z + 1);
+        for (d = 0; d < DAYS; d++) printf("%6.1f", humidity[z][d]);
+        printf("\n");
+    }
+    printf("\nAQI\nZone    D1    D2    D3    D4    D5    D6    D7\n");
+    for (z = 0; z < ZONES; z++) {
+        printf("%4d", z + 1);
+        for (d = 0; d < DAYS; d++) printf("%6d", aqi[z][d]);
+        printf("\n");
+    }
+}
+
+/* seven-day average of each parameter for every zone */
+void calculateAverages(float temp[ZONES][DAYS], float humidity[ZONES][DAYS],
+                       int aqi[ZONES][DAYS], float avgTemp[ZONES],
+                       float avgHumidity[ZONES], float avgAQI[ZONES]) {
+    int z, d;
+    float sumTemp, sumHumidity, sumAQI;
+    for (z = 0; z < ZONES; z++) {
+        sumTemp = 0;
+        sumHumidity = 0;
+        sumAQI = 0;
+        for (d = 0; d < DAYS; d++) {
+            sumTemp = sumTemp + temp[z][d];
+            sumHumidity = sumHumidity + humidity[z][d];
+            sumAQI = sumAQI + aqi[z][d];
+        }
+        avgTemp[z] = sumTemp / DAYS;
+        avgHumidity[z] = sumHumidity / DAYS;
+        avgAQI[z] = sumAQI / DAYS;
+    }
+}
+
+/* counts risk days (each day once) and prints the day numbers */
+void detectRiskZones(float temp[ZONES][DAYS], float humidity[ZONES][DAYS],
+                     int aqi[ZONES][DAYS], int riskDays[ZONES]) {
+    int z, d;
+    printf("\nRisk days (AQI>150 or Temp>35 or Humidity>80):\n");
+    for (z = 0; z < ZONES; z++) {
+        riskDays[z] = 0;
+        for (d = 0; d < DAYS; d++) {
+            if (aqi[z][d] > 150 || temp[z][d] > 35 || humidity[z][d] > 80) {
+                riskDays[z]++;
+            }
+        }
+        printf("Zone %d: %d risk day(s)", z + 1, riskDays[z]);
+        if (riskDays[z] > 0) {
+            printf(" - day(s):");
+            for (d = 0; d < DAYS; d++) {
+                if (aqi[z][d] > 150 || temp[z][d] > 35 || humidity[z][d] > 80) {
+                    printf(" %d", d + 1);
+                }
+            }
+        }
+        printf("\n");
+    }
+}
+
+/* Green Index of each zone (negative scores are clamped to zero) */
+void computeGreenIndex(float avgTemp[ZONES], float avgHumidity[ZONES],
+                       float avgAQI[ZONES], float greenIndex[ZONES]) {
+    int z;
+    float aqiScore, tempScore, humidityScore;
+    for (z = 0; z < ZONES; z++) {
+        aqiScore = 100 - (avgAQI[z] / 5);
+        tempScore = 100 - 4 * absDiff(avgTemp[z], 25);
+        humidityScore = 100 - 2 * absDiff(avgHumidity[z], 50);
+        if (aqiScore < 0) aqiScore = 0;
+        if (tempScore < 0) tempScore = 0;
+        if (humidityScore < 0) humidityScore = 0;
+        greenIndex[z] = 0.4 * aqiScore + 0.3 * tempScore + 0.3 * humidityScore;
+    }
+}
+
+/* equal Green Index values get the same rank (ties are kept) */
+void displayRanking(float greenIndex[ZONES]) {
+    int rank[ZONES], z, other, r;
+    for (z = 0; z < ZONES; z++) {
+        rank[z] = 1;
+        for (other = 0; other < ZONES; other++) {
+            if (greenIndex[other] - greenIndex[z] > 0.005) {
+                rank[z]++;           /* this zone has a better score */
+            }
+        }
+    }
+    printf("\nGreen Index ranking (best to lowest):\n");
+    for (r = 1; r <= ZONES; r++) {
+        for (z = 0; z < ZONES; z++) {
+            if (rank[z] == r) {
+                printf("Rank %d: Zone %d (", r, z + 1);
+                printZoneName(z);
+                printf(") GI = %.2f\n", greenIndex[z]);
+            }
+        }
+    }
+}
+
+/* zone-wise advice from the averages and the risk-day counts */
+void displayRecommendations(float avgTemp[ZONES], float avgHumidity[ZONES],
+                            float avgAQI[ZONES], int riskDays[ZONES]) {
+    int z, advice;
+    printf("\nRecommendations:\n");
+    for (z = 0; z < ZONES; z++) {
+        advice = 0;
+        printf("Zone %d (", z + 1);
+        printZoneName(z);
+        printf("):\n");
+        if (avgAQI[z] > 150) {
+            printf("  - cut vehicle idling / improve ventilation\n");
+            advice = 1;
+        }
+        if (avgTemp[z] > 35) {
+            printf("  - add shade or green cover\n");
+            advice = 1;
+        }
+        if (avgHumidity[z] > 80) {
+            printf("  - check ventilation / stagnant water\n");
+            advice = 1;
+        }
+        if (advice == 0 && riskDays[z] > 0) {
+            printf("  - review the flagged dates\n");
+        } else if (advice == 0) {
+            printf("  - no risk, continue monitoring\n");
+        }
+    }
+}
+
+void printZoneName(int zone) {
+    switch (zone) {
+        case 0: printf("Academic Block"); break;
+        case 1: printf("Hostel"); break;
+        case 2: printf("Library"); break;
+        case 3: printf("Cafeteria"); break;
+        default: printf("Sports Area");
+    }
+}
+
+/* absolute difference using if-else (no math library) */
+float absDiff(float value, float target) {
+    if (value >= target) return value - target;
+    return target - value;
+}
