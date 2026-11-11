@@ -1,0 +1,41 @@
+1. Start 
+
+2. Declare temp[5][7], humidity[5][7], aqi[5][7], avgTemp[5], avgHumidity[5], 
+
+   avgAQI[5], greenIndex[5], riskDays[5] 
+
+3. Set dataReady = 0 
+
+4. Repeat 
+
+     a. Display menu (1-7) and read choice 
+
+     b. IF input is not a number → show error, go back to step 3a 
+
+     c. IF choice is 2 to 6 AND dataReady == 0 
+
+          → print "No data entered yet. Choose option 1 first." 
+
+          → go back to step 3a 
+
+     d. Switch the choice 
+
+          1: call inputData();  dataReady = 1 
+
+          2: call displayData() 
+
+          3: call calculateAverages(); print averages table 
+
+          4: call detectRiskZones() 
+
+          5: call calculateAverages() → computeGreenIndex() → displayRanking() 
+
+          6: call calculateAverages() → detectRiskZones() → displayRecommendations() 
+
+          7: print goodbye message 
+
+          other: print "Invalid choice" 
+
+   Until choice == 7 
+
+5. Stop 
